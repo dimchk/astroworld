@@ -3,6 +3,10 @@
 
 namespace App\Controller;
 
+use App\Message\OrderMessage;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Validator\ConstraintViolation;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use App\Entity\Order;
 use App\Entity\Service;
@@ -25,8 +29,12 @@ class CreateOrderController extends AbstractController
      * @param PaymentProcessorInterface $payments
      * @return Response
      */
-    public function createOrder(Request $request, PaymentProcessorInterface $payments, ValidatorInterface $validator)
-    {
+    public function createOrder(
+        Request $request,
+        PaymentProcessorInterface $payments,
+        ValidatorInterface $validator,
+        MessageBusInterface $bus
+    ) {
         try {
             //Payment processing
             $payments->process();
@@ -35,9 +43,7 @@ class CreateOrderController extends AbstractController
                 $service = $entityManager->getRepository(Service::class)->find($request->query->get('serviceId'));
 
                 if (!$service) {
-                    throw $this->createNotFoundException(
-                        'No Service found for id '
-                    );
+                    return new JsonResponse("Service doesn't exist", 400);
                 }
 
                 $order = new Order();
@@ -46,18 +52,33 @@ class CreateOrderController extends AbstractController
                 $order->setClientName($request->query->get('clientName'));
 
                 $errors = $validator->validate($order);
+                if (count($errors) > 0) {
+                    $messages = [];
+                    /**
+                     * @var ConstraintViolation $error
+                     */
+                    foreach ($errors as $error) {
+                        $messages[] = ['Field' => $error->getPropertyPath(), 'Reason' => $error->getMessage()];
+                    }
+
+                    return new JsonResponse($messages, 400);
+
+                }
 
                 $entityManager->persist($order);
                 $entityManager->flush();
+
+                $bus->dispatch(new OrderMessage($order->getId()));
+
             } else {
-                return new Response('Problem with payments ', 400);
+                return new JsonResponse('Problem with payments ', 400);
             }
 
-            $google = new GoogleSpreadsheetService();
-            $google->createNewOrderRow($order);
-            return new Response('Saved new order with id ' . $order->getId());
+
+            return new JsonResponse('Saved new order with id ' . $order->getId());
         } catch (\Error $exception) {
-            return new Response('Invalid request', 400);
+
+            return new JsonResponse('Invalid request', 400);
         }
 
     }

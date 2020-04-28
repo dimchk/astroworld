@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use ApiPlatform\Core\Annotation\ApiResource;
+use Symfony\Component\Validator\Constraints as Assert;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -23,14 +24,27 @@ class Order
 
     /**
      * @var string
-     *
+     * /**
+     * @Assert\Length(
+     *     min="1",
+     *     max="50",
+     *     allowEmptyString = false
+     * )
+     * /**
+     * @Assert\Email(
+     *     message = "The email '{{ value }}' is not a valid email."
+     * )
      * @ORM\Column(name="client_email", type="string", length=255, nullable=false)
      */
     private $clientEmail;
 
     /**
      * @var string
-     *
+     * @Assert\Length(
+     *     min="1",
+     *     max="50",
+     *     allowEmptyString = false
+     * )
      * @ORM\Column(name="client_name", type="string", length=255, nullable=false)
      */
     private $clientName;
